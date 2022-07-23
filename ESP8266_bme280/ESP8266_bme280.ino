@@ -1,4 +1,3 @@
-
 #include <ESP8266WiFi.h>        // ESP8266 Core WiFi Library        
 #include <WiFiUdp.h>
 #include <SNMP_Agent.h>
@@ -7,40 +6,40 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include "Configuration.h"
 
-const char *ssid = "ssid";
-const char *password = "password";
+const char *ssid = STASSID;
+const char *password = STAPSK;
 
 WiFiUDP udp;
+
 // Starts an SMMPAgent instance with the read-only community string 'public', and read-write community string 'private
-SNMPAgent snmp = SNMPAgent("public", "private");  
+SNMPAgent snmp = SNMPAgent(SNMP_COMMUNITY_STRING, SNMP_COMMUNITY_STRING_RW);  
 
 // Numbers used to response to Get requests
-int changingNumber = 1;
-int settableNumber = 0;
-uint32_t tensOfMillisCounter = 0;
-int humidity = 0;
-int temperature = 0;
+int changingNumber    =        VALUE_ZERO;
+int settableNumber    =        VALUE_ZERO;
+int humidity          =        VALUE_ZERO;
+int temperature       =        VALUE_ZERO;
+uint32_t tensOfMillisCounter = VALUE_ZERO;
 
 // arbitrary data will be stored here to act as an OPAQUE data-type
 uint8_t* stuff = 0;
 
-
 // If we want to change the functionaality of an OID callback later, store them here.
-ValueCallback* changingNumberOID;
-ValueCallback* settableNumberOID;
-TimestampCallback* timestampCallbackOID;
-ValueCallback* temperatureOID;
-ValueCallback* humidityOID;
-ValueCallback* EndOID;
+ValueCallback*      changingNumberOID;
+ValueCallback*      settableNumberOID;
+ValueCallback*      temperatureOID;
+ValueCallback*      humidityOID;
+ValueCallback*      EndOID;
+TimestampCallback*  timestampCallbackOID;
 
-std::string staticString = "This value will never change";
 std::string staticStringTemp = "Temperature";
-std::string staticStringHum = "Humidity";
-std::string staticStringEnd = " ";
+std::string staticStringHum  = "Humidity";
+std::string staticStringEnd  = " ";
 
 // Setup an SNMPTrap for later use
-SNMPTrap* settableNumberTrap = new SNMPTrap("public", SNMP_VERSION_2C);
+SNMPTrap* settableNumberTrap = new SNMPTrap(SNMP_COMMUNITY_STRING, SNMP_VERSION_2C);
 char* changingString;
 
 Adafruit_BME280 bme; // I2C
@@ -48,22 +47,24 @@ Adafruit_BME280 bme; // I2C
 void setup(){
     Serial.begin(115200);
     WiFi.begin(ssid, password);
-    // WiFi.begin(ssid);
-    Serial.println("");
 
     // Wait for connection
     while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
+        Serial.print("Connecting to server ");
+        Serial.print(ssid);
+        delay(DELAY);
         Serial.print(".");
     } 
+    
     Serial.println("");
     Serial.print("Connected to ");
     Serial.println(ssid);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 
+    // Configuration for sensor bme280
     bool status;
-    status = bme.begin(0x76);  
+    status = bme.begin(BME280_ADDRESS);  
     if (!status) {
       Serial.println("Could not find a valid BME280 sensor, check wiring!");
     while (1);
@@ -100,7 +101,6 @@ void setup(){
     // More examples:
     snmp.addIntegerHandler(".1.3.6.1.4.1.4.0", &changingNumber);
     snmp.addOpaqueHandler(".1.3.6.1.4.1.5.9", stuff, 4, true);
-    snmp.addReadOnlyStaticStringHandler(".1.3.6.1.4.1.5.11", staticString);
     
     // Setup read/write string
     changingString = (char*)malloc(25 * sizeof(char));
@@ -165,11 +165,17 @@ void loop(){
     }
     changingNumber++;
     tensOfMillisCounter = millis()/10;
+
+    // Read data from sensor bme280
     humidity = bme.readHumidity();
     temperature = bme.readTemperature();
+
+#ifdef SHOW_VALUE_FROM_BME280
+  valueBME280();
+#endif
 }
 
-void printValues() {
+void valueBME280() {
   Serial.print("Temperature = ");
   Serial.print(bme.readTemperature());
   Serial.println(" *C");
